@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: techradar_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-techradar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-techradar_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-techradar_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-techradar} -d ${POSTGRES_DB:-techradar_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - techradar_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: techradar_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - techradar_net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: techradar_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-techradar}:${POSTGRES_PASSWORD:-techradar_secret}@postgres:5432/${POSTGRES_DB:-techradar_db}
+      SYNC_DATABASE_URL: postgresql://${POSTGRES_USER:-techradar}:${POSTGRES_PASSWORD:-techradar_secret}@postgres:5432/${POSTGRES_DB:-techradar_db}
+      REDIS_URL: redis://redis:6379/0
+      PDF_OUTPUT_DIR: /app/artifacts/pdfs
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./docs:/app/docs:ro
+    networks:
+      - techradar_net
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  techradar_net:
+    driver: bridge

@@ -1,0 +1,133 @@
+# ==============================================================================
+# Git Ignore Configuration for Autonomous Tech Radar Agent
+# Prevents leaking credentials, environment secrets, binaries, and local caches.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Critical Credentials, Secrets & Environment Configurations
+# ------------------------------------------------------------------------------
+.env
+.env.*
+.env.example
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+secrets/
+credentials.json
+service_account.json
+
+# ------------------------------------------------------------------------------
+# 2. Python Bytecode, Caches & Distribution
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ------------------------------------------------------------------------------
+# 3. Virtual Environments
+# ------------------------------------------------------------------------------
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# ------------------------------------------------------------------------------
+# 4. Testing, Benchmarks, Profiling & Coverage
+# ------------------------------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.tox/
+.nox/
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ------------------------------------------------------------------------------
+# 5. Compiled Artifacts, Generated PDFs & Whitepapers
+# ------------------------------------------------------------------------------
+artifacts/pdfs/*
+!artifacts/pdfs/.gitkeep
+artifacts/*.pdf
+*.pdf
+eval_output/
+reports/
+
+# ------------------------------------------------------------------------------
+# 6. Database Volumes, Local Stores & Deduplication Dumps
+# ------------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+pgdata/
+postgres_data/
+redis_data/
+*.rdb
+*.aof
+dedup_cache.json
+seen_hashes.json
+
+# ------------------------------------------------------------------------------
+# 7. Application Logs & Temporary Dumps
+# ------------------------------------------------------------------------------
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+tmp/
+temp/
+scratch/
+
+# ------------------------------------------------------------------------------
+# 8. Operating System & Editor Metadata
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# Editors & IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Local Docker Overrides
+docker-compose.override.yml
