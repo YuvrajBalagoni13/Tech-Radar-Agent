@@ -1,9 +1,4 @@
-"""
-Persistent Deduplication Store for Tech Radar Agent.
-Maintains a persistent JSON file and in-memory set of cryptographic content hashes.
-Guarantees that identical technical releases or research papers are NEVER alerted multiple times,
-unless explicitly cleared via user command (/reset history or /clear seen).
-"""
+"""Tracks seen release content hashes in a JSON file to prevent duplicate alerts."""
 
 import json
 import logging
@@ -18,7 +13,7 @@ DEDUP_FILE = os.path.join(DATA_DIR, "seen_hashes.json")
 
 
 class DeduplicationStore:
-    """Manages cryptographic SHA-256 content hashes of processed releases."""
+    """In-memory and file-backed cache of processed release hashes."""
 
     _seen_hashes: Set[str] = set()
     _loaded: bool = False
@@ -61,7 +56,7 @@ class DeduplicationStore:
 
     @classmethod
     def clear(cls) -> int:
-        """Wipe all recorded seen hashes to allow re-evaluation of previous releases."""
+        """Clear all recorded seen hashes."""
         cls.load()
         count = len(cls._seen_hashes)
         cls._seen_hashes.clear()
@@ -76,6 +71,6 @@ class DeduplicationStore:
 
     @classmethod
     def count(cls) -> int:
-        """Return total count of unique releases seen and deduplicated."""
+        """Return total count of seen hashes."""
         cls.load()
         return len(cls._seen_hashes)

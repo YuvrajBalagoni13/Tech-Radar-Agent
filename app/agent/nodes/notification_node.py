@@ -1,8 +1,4 @@
-"""
-Discord Alert Dispatcher & Checkpoint Preparation Node.
-Constructs rich embeds with interactive callback action buttons and transmits them
-to the configured Discord channel using the Strategy Pattern NotificationService.
-"""
+"""Dispatches paper alerts to Discord (and Telegram if configured) before the approval interrupt."""
 
 import logging
 from typing import Any, Dict
@@ -16,11 +12,7 @@ logger = logging.getLogger("techradar.notification_node")
 
 
 async def notification_node(state: AgentState, config: RunnableConfig = None) -> Dict[str, Any]:
-    """
-    Dispatches initial alert to Discord with interactive action buttons.
-    Interrupt checkpoint occurs immediately after this node.
-    Delivers directly to user DM if DISCORD_USER_ID or user.discord_id is configured.
-    """
+    """Send alert notification with approval buttons before pausing at the human interrupt."""
     thread_id = "default-thread"
     if config and "configurable" in config:
         thread_id = config["configurable"].get("thread_id", thread_id)
@@ -34,7 +26,7 @@ async def notification_node(state: AgentState, config: RunnableConfig = None) ->
     user_id = state.get("user_id", "default_user")
     discord_recipient = settings.DISCORD_USER_ID or settings.DISCORD_CHANNEL_ID or user_id
 
-    # If user_id has a registered profile in PostgreSQL, look up their discord_id
+    # Look up user's discord_id if registered in db
     if user_id and user_id != "default_user":
         try:
             from app.core.database import AsyncSessionLocal

@@ -1,8 +1,4 @@
-"""
-Domain-Scoped Search and Technical Retrieval Service.
-Queries Tavily Search API or fallback technical search providers, explicitly scoping queries
-to the developer's declared architecture stack to eliminate irrelevant web noise.
-"""
+"""Technical search service querying Tavily with local fallback notes."""
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -14,10 +10,7 @@ logger = logging.getLogger("techradar.search")
 
 
 class TechnicalSearchService:
-    """
-    Retrieves high-signal technical documentation, benchmark analyses, and GitHub implementations
-    strictly scoped to target domain constraints.
-    """
+    """Queries technical sources for domain-scoped benchmarks and trade-offs."""
 
     def __init__(self, api_key: Optional[str] = None, timeout: float = 15.0):
         self.api_key = api_key or settings.TAVILY_API_KEY
@@ -30,10 +23,7 @@ class TechnicalSearchService:
         matched_domains: List[str],
         user_prompt_override: Optional[str] = None,
     ) -> str:
-        """
-        Construct domain-scoped technical search query.
-        Format: "{release_title} in context of ({matched_domains}) technical architecture implementation limitations"
-        """
+        """Format a search query scoped to matched domains and optional user notes."""
         domains_str = ", ".join(matched_domains) if matched_domains else "System Architecture, AI Systems"
         base_query = f"{release_title} in context of ({domains_str}) technical architecture implementation limitations"
         
@@ -48,9 +38,7 @@ class TechnicalSearchService:
         max_results: int = 5,
         search_depth: str = "advanced",
     ) -> ResearchOutput:
-        """
-        Execute domain-scoped search via Tavily REST API with graceful degradation fallback.
-        """
+        """Run search query via Tavily, falling back to offline notes on error."""
         logger.info(f"Executing scoped technical query: '{query}'")
 
         if not self.api_key:
@@ -93,9 +81,7 @@ class TechnicalSearchService:
             return self._generate_fallback_notes(query)
 
     def _generate_fallback_notes(self, query: str) -> ResearchOutput:
-        """
-        Fallback synthetic research engine providing deep architectural insights when offline or unauthenticated.
-        """
+        """Offline fallback research notes when Tavily is unavailable."""
         simulated_sources = [
             {
                 "title": "Architectural Whitepaper & Systems Benchmark",

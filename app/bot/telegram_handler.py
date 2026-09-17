@@ -1,9 +1,4 @@
-"""
-Telegram Bot Webhook and Interactive Command Handler.
-Processes incoming Telegram updates (text commands and inline keyboard callback queries).
-Enables 100% free interactive multi-channel dispatch, dynamic embedding synchronization,
-and LangGraph human-in-the-loop checkpoint resumption.
-"""
+"""Telegram webhook and polling handler for commands and inline button callbacks."""
 
 import asyncio
 import logging
@@ -24,12 +19,7 @@ _in_memory_profiles: Dict[str, UserProfile] = {}
 
 
 class TelegramWebhookHandler:
-    """
-    Processes Telegram Bot API webhook updates and long-polling messages.
-    Routes slash commands (/track, /ignore, /status, /threshold, /yes, /skip)
-    and handles inline keyboard button callbacks for 1-click tutorial compilation.
-    Includes in-memory profile fallback so the bot functions smoothly even if DB is offline.
-    """
+    """Handles Telegram updates, command routing, and inline button callbacks."""
 
     @staticmethod
     def _ensure_user_defaults(user: UserProfile) -> None:
@@ -80,7 +70,7 @@ class TelegramWebhookHandler:
 
     @classmethod
     async def get_or_create_user(cls, chat_id: str, session: Optional[Any] = None) -> UserProfile:
-        """Locate user profile by Telegram chat ID or provision a new developer profile with in-memory fallback."""
+        """Get user profile by chat ID, falling back to in-memory store if DB is down."""
         clean_chat_id = str(chat_id).strip()
         try:
             if session:
@@ -150,10 +140,7 @@ class TelegramWebhookHandler:
 
     @classmethod
     async def process_update(cls, update: TelegramUpdate) -> Dict[str, Any]:
-        """
-        Main entrypoint for Telegram webhook and long-polling updates.
-        Handles message commands and inline button callbacks.
-        """
+        """Process incoming Telegram webhook or polling update."""
         # 1. Handle Inline Button Clicks (Callback Query)
         if update.callback_query:
             cq = update.callback_query
@@ -836,12 +823,7 @@ async def execute_ad_hoc_research(
     chat_id: int,
     query: str,
 ) -> None:
-    """
-    Executes targeted ad-hoc literature research for a free-form natural language query.
-    Extracts taxonomy codes, fetches relevant papers from arXiv, calculates semantic similarity
-    against the specific ad-hoc query, and dispatches ranked candidates with 1-click synthesis buttons.
-    Leaves user's persistent profile and daily radar tracks completely untouched.
-    """
+    """Run ad-hoc literature research for a query, rank results, and dispatch alerts."""
     import uuid
     from app.agent.graph import get_radar_graph
     from app.agent.nodes.domain_filter_node import calculate_cosine_similarity, generate_embedding
@@ -1047,11 +1029,7 @@ _telegram_polling_task: Optional[asyncio.Task] = None
 
 
 async def telegram_polling_worker() -> None:
-    """
-    Background worker that runs Telegram Long Polling (getUpdates).
-    Eliminates need for public webhook URLs, tunneling (ngrok), or open ports when running locally.
-    Listens for user commands (/status, /track, /ignore, /threshold, /yes, /skip) and inline button clicks.
-    """
+    """Poll Telegram getUpdates in the background to handle commands and button clicks."""
     token = settings.TELEGRAM_BOT_TOKEN
     if not token or token.startswith("your_") or token.startswith("your-"):
         logger.info("Telegram bot token not configured or mock. Skipping Telegram long-polling worker.")
@@ -1059,8 +1037,7 @@ async def telegram_polling_worker() -> None:
 
     logger.info("Initializing Telegram Long Polling worker...")
 
-    # Step 1: Delete any existing webhook so Telegram allows getUpdates polling.
-    # We pass drop_pending_updates=False so any messages sent while offline are preserved & processed.
+    # Delete existing webhook so Telegram allows getUpdates polling.
     delete_url = f"https://api.telegram.org/bot{token}/deleteWebhook"
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -1122,7 +1099,7 @@ async def telegram_polling_worker() -> None:
 
 
 async def start_telegram_polling() -> None:
-    """Start Telegram long-polling background task if bot token is configured."""
+    """Start Telegram long-polling worker if bot token is configured."""
     global _telegram_polling_task
     token = settings.TELEGRAM_BOT_TOKEN
     if not token or token.startswith("your_") or token.startswith("your-"):
@@ -1134,7 +1111,7 @@ async def start_telegram_polling() -> None:
 
 
 async def stop_telegram_polling() -> None:
-    """Gracefully cancel and terminate Telegram long-polling task on shutdown."""
+    """Stop Telegram long-polling worker on shutdown."""
     global _telegram_polling_task
     if _telegram_polling_task and not _telegram_polling_task.done():
         logger.info("Stopping Telegram long-polling worker...")

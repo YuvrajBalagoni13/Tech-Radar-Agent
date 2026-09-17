@@ -1,8 +1,4 @@
-"""
-Publication-Grade Technical Brief and Summarized Explanation Synthesis Node.
-Drafts deep theoretical and architectural briefs, algorithmic mechanics, and research takeaways.
-Integrates Groq LLM with deterministic domain-aligned grounded synthesis fallback.
-"""
+"""Generates technical briefs and summaries using Groq with a deterministic fallback."""
 
 import logging
 from typing import Any, Dict
@@ -15,9 +11,7 @@ logger = logging.getLogger("techradar.synthesis_node")
 
 
 async def synthesis_node(state: AgentState) -> Dict[str, Any]:
-    """
-    Synthesizes research findings into an authoritative technical brief and summarized explanation.
-    """
+    """Synthesize paper summary and research findings into a technical markdown brief."""
     release_raw = state.get("release_item")
     if isinstance(release_raw, dict):
         release = TechReleaseItem(**release_raw)
@@ -30,7 +24,7 @@ async def synthesis_node(state: AgentState) -> Dict[str, Any]:
 
     logger.info(f"Synthesizing technical brief and summarized explanation for '{release.title}'...")
 
-    # Check if Groq LLM is available
+    # Use Groq if available
     if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("gsk_your"):
         try:
             findings_text = "\n\n".join([n.get("findings", "") for n in research_notes])
@@ -78,7 +72,7 @@ async def synthesis_node(state: AgentState) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Groq LLM synthesis call failed: {e}. Utilizing deterministic fallback generator.")
 
-    # High-signal, deterministic grounded technical brief generator
+    # Fallback markdown brief generator
     domains_header = ", ".join(matched_domains) if matched_domains else "Computer Science"
     custom_focus_note = (
         f"\n> [!WARNING]\n> **User Focus Constraint**: {user_prompt_override}\n"

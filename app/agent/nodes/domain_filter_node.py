@@ -1,10 +1,4 @@
-"""
-Multi-Stage Relevance & Deterministic Filtering Node.
-Executes a 3-stage triage pipeline:
-  1. Cryptographic Deduplication (SHA-256 vs PostgreSQL processed_releases)
-  2. Deterministic Negative Keyword Filtering (Regex without LLM cost)
-  3. Dense Semantic Vector Search via pgvector Cosine Distance
-"""
+"""3-stage filter: dedup check, negative keywords, and vector similarity."""
 
 import hashlib
 import logging
@@ -23,10 +17,7 @@ logger = logging.getLogger("techradar.filter_node")
 
 
 def calculate_cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
-    """
-    Compute mathematical cosine similarity between two dense vectors:
-    CosineSim(u, v) = (u . v) / (||u|| * ||v||)
-    """
+    """Compute cosine similarity between two vectors."""
     if not vec_a or not vec_b or len(vec_a) != len(vec_b):
         return 0.0
 
@@ -41,11 +32,7 @@ def calculate_cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float
 
 
 async def generate_embedding(text: str) -> List[float]:
-    """
-    Generate 1536-dimensional dense embedding for semantic vector indexing in pgvector.
-    Combines unigram, bigram, and subword n-gram term frequencies for high semantic
-    discrimination without artificial carrier baselines. Guarantees unit Euclidean norm.
-    """
+    """Generate normalized bag-of-words / n-gram embedding."""
     dim = settings.EMBEDDING_DIMENSIONS
     words = re.findall(r"\w+", text.lower())
     topic_vec = [0.0] * dim
@@ -67,9 +54,7 @@ async def generate_embedding(text: str) -> List[float]:
 
 
 async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
-    """
-    LangGraph execution node implementing the 3-stage triage pipeline.
-    """
+    """Run release through dedup, keyword, and embedding checks."""
     from app.agent.nodes.planner_node import KNOWN_TAXONOMY
 
     # If state was explicitly pre-validated as relevant (e.g. testing fixture or manual override)
@@ -94,9 +79,7 @@ async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
 
     logger.info(f"Initiating 3-stage domain filter for item '{release.title[:40]}' [hash: {content_hash[:8]}]")
 
-    # -------------------------------------------------------------------------
-    # STAGE 1: Cryptographic Deduplication (Persistent file + Postgres)
-    # -------------------------------------------------------------------------
+    # 1. Deduplication check
     from app.services.dedup_store import DeduplicationStore
 
     if DeduplicationStore.is_seen(content_hash):
@@ -165,9 +148,7 @@ async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
         if user_record.profile_embedding is not None:
             user_profile_vec = list(user_record.profile_embedding)
 
-    # -------------------------------------------------------------------------
-    # STAGE 2: Deterministic Negative Keyword Match (Zero LLM Cost)
-    # -------------------------------------------------------------------------
+    # 2. Negative keywords
     text_corpus = f"{release.title} {release.summary}".lower()
     for kw in user_ignored_keywords:
         pattern = rf"\b{re.escape(kw.lower().strip())}\b"
@@ -181,9 +162,7 @@ async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
                 "matched_domains": [],
             }
 
-    # -------------------------------------------------------------------------
-    # STAGE 3: Dense Cosine Similarity & Strict Grounded Domain Matching
-    # -------------------------------------------------------------------------
+    # 3. Vector similarity & domain matching
     release_text = f"{release.title}: {release.summary}"
     release_vec = await generate_embedding(release_text)
 

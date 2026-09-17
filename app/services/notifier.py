@@ -1,7 +1,4 @@
-"""
-OOP Notification Subsystem implementing SOLID Principles and the Strategy Pattern.
-Dispatches interactive embeds with action buttons to Discord and template alerts to Telegram via Bot API.
-"""
+"""Notification helpers for Discord and Telegram alerts and PDF uploads."""
 
 from abc import ABC, abstractmethod
 import logging
@@ -14,28 +11,21 @@ logger = logging.getLogger("techradar.notifier")
 
 
 class BaseNotifier(ABC):
-    """
-    Abstract Base Class (Dependency Inversion Principle).
-    Defines the contract for dispatching real-time notifications and binary artifacts.
-    """
+    """Base interface for dispatching alerts and generated artifacts."""
 
     @abstractmethod
     async def send_notification(self, payload: AlertPayload) -> bool:
-        """Dispatch structured alert to the communication channel."""
+        """Send an alert to the notification channel."""
         pass
 
     @abstractmethod
     async def send_artifact(self, recipient: str, file_path: str, caption: str) -> bool:
-        """Transmit compiled file artifact (e.g. PDF tutorial) to the target recipient."""
+        """Send a generated file (e.g. PDF) to the recipient."""
         pass
 
 
 class DiscordNotifier(BaseNotifier):
-    """
-    Concrete Strategy for Discord Webhook and REST API interaction.
-    Renders rich markdown embeds and interactive Action Row components (buttons).
-    Supports Direct Messages (DMs) to individual users as well as server channel delivery.
-    """
+    """Discord notifier for sending alerts with buttons and uploading PDFs."""
 
     _dm_channel_cache: Dict[str, str] = {}
 
@@ -61,11 +51,7 @@ class DiscordNotifier(BaseNotifier):
         return 0xF39C12      # Alert Amber
 
     async def _get_or_create_dm_channel(self, user_snowflake: str) -> Optional[str]:
-        """
-        Open or retrieve an existing Direct Message (DM) channel with a Discord user.
-        Uses Discord REST API: POST /users/@me/channels with {"recipient_id": user_snowflake}.
-        Caches the resolved dm_channel_id in-memory for zero-overhead subsequent dispatches.
-        """
+        """Fetch or create a DM channel with a user, caching the ID."""
         clean_user_id = str(user_snowflake).strip()
         if not clean_user_id or clean_user_id.startswith("default") or clean_user_id == "anonymous":
             return None
@@ -107,13 +93,7 @@ class DiscordNotifier(BaseNotifier):
         return None
 
     async def _resolve_target_channel(self, recipient: Optional[str] = None) -> Optional[str]:
-        """
-        Resolves the target Discord channel ID.
-        Prioritizes:
-        1. Recipient if it is a user ID (resolving DM channel)
-        2. Configured DISCORD_USER_ID (resolving DM channel)
-        3. Configured DISCORD_CHANNEL_ID (direct server channel delivery)
-        """
+        """Determine target channel: recipient DM first, then configured channel ID."""
         # Check target user ID candidates
         target_user = recipient if recipient and not recipient.startswith("default") else self.user_id
         if target_user:
@@ -127,10 +107,7 @@ class DiscordNotifier(BaseNotifier):
         return self.channel_id or None
 
     async def send_notification(self, payload: AlertPayload) -> bool:
-        """
-        Dispatches a rich embed with interactive callback buttons to Discord.
-        Delivers via Direct Message (DM) to user if configured, or falls back to server channel.
-        """
+        """Send embed with action buttons to Discord channel or user DM."""
         target_channel = await self._resolve_target_channel(payload.recipient_id)
 
         if (
@@ -241,10 +218,7 @@ class DiscordNotifier(BaseNotifier):
 
 
 class TelegramNotifier(BaseNotifier):
-    """
-    Concrete Strategy for Telegram Bot API communication.
-    100% Free Forever, with support for rich HTML formatting, inline keyboards, and PDF uploads.
-    """
+    """Telegram notifier using the Bot API for HTML alerts and document uploads."""
 
     def __init__(
         self,
@@ -258,10 +232,7 @@ class TelegramNotifier(BaseNotifier):
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}" if self.bot_token else ""
 
     async def send_notification(self, payload: AlertPayload) -> bool:
-        """
-        Dispatches rich HTML alert to Telegram chat with interactive inline action buttons.
-        Buttons contain callback_data with LangGraph thread_id for 1-click resumption.
-        """
+        """Send HTML alert with inline action buttons to Telegram."""
         target_chat = None
         if payload.recipient_id:
             cand = str(payload.recipient_id).strip()
@@ -330,10 +301,7 @@ class TelegramNotifier(BaseNotifier):
             return False
 
     async def send_artifact(self, recipient: str, file_path: str, caption: str) -> bool:
-        """
-        Uploads compiled PDF whitepaper directly to Telegram chat via sendDocument.
-        Telegram allows free file uploads up to 50MB per document.
-        """
+        """Upload PDF document to Telegram chat."""
         target_chat = None
         if recipient:
             cand = str(recipient).strip()
@@ -374,11 +342,7 @@ class TelegramNotifier(BaseNotifier):
 
 
 class NotificationService:
-    """
-    Context class for Strategy Pattern.
-    Dynamically routes payloads to registered concrete notifiers without coupling graph nodes.
-    Supports Discord and Telegram natively.
-    """
+    """Service router for sending alerts and artifacts across Discord and Telegram."""
 
     def __init__(self):
         self._strategies: Dict[str, BaseNotifier] = {
@@ -387,7 +351,7 @@ class NotificationService:
         }
 
     def register_strategy(self, channel_name: str, notifier: BaseNotifier) -> None:
-        """Open-Closed Principle: Allows adding new channels (Slack, Email) at runtime."""
+        """Register an extra notification channel if needed."""
         self._strategies[channel_name.upper()] = notifier
         logger.info(f"Registered notification strategy for channel: {channel_name.upper()}")
 

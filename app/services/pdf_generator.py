@@ -1,9 +1,4 @@
-"""
-Enterprise WeasyPrint PDF Generation Service.
-Compiles technical Markdown tutorials into publication-grade, styled PDF documents.
-Includes syntax highlighting, executive callout containers, page counters, and headers/footers.
-Offloaded to an asynchronous thread worker to prevent Python asyncio event loop starvation.
-"""
+"""Renders markdown research briefs into styled PDF documents using WeasyPrint in a thread worker."""
 
 import asyncio
 import logging
@@ -17,7 +12,7 @@ from app.core.config import settings
 
 logger = logging.getLogger("techradar.pdf_generator")
 
-# Professional enterprise styling for WeasyPrint
+# Base styling for WeasyPrint
 ENTERPRISE_PDF_CSS = """
 @page {
     size: A4;
@@ -229,19 +224,14 @@ li {
 
 
 class PDFGeneratorService:
-    """
-    High-fidelity PDF compilation service formatting Markdown research drafts into
-    enterprise whitepapers using WeasyPrint.
-    """
+    """Converts markdown text into styled PDF files."""
 
     def __init__(self, output_dir: Optional[str] = None):
         self.output_dir = Path(output_dir or settings.PDF_OUTPUT_DIR)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def _transform_callouts(self, html: str) -> str:
-        """
-        Enhance blockquotes and custom markdown notations into styled enterprise callout cards.
-        """
+        """Replace custom blockquote tags with styled callout cards."""
         # Transform [!HYPE], [!REALITY], [!ARCHITECTURE], [!WARNING]
         patterns = [
             (r"<blockquote>\s*<p>\s*\[!HYPE\]\s*(.*?)</p>\s*</blockquote>",
@@ -260,9 +250,7 @@ class PDFGeneratorService:
         return transformed
 
     def compile_html(self, markdown_text: str, title: str) -> str:
-        """
-        Convert Markdown source into full standalone HTML document with enterprise styling.
-        """
+        """Convert markdown text into a full styled HTML document."""
         md_extensions = ["extra", "codehilite", "tables", "admonition", "fenced_code"]
         raw_body_html = markdown.markdown(markdown_text, extensions=md_extensions)
         styled_body = self._transform_callouts(raw_body_html)
@@ -296,10 +284,7 @@ class PDFGeneratorService:
         return full_html
 
     def _sync_render_pdf(self, html_content: str, destination_path: Path) -> None:
-        """
-        Synchronous PDF compilation via WeasyPrint.
-        Isolated inside a thread to prevent blocking asynchronous event loops.
-        """
+        """Render HTML to PDF synchronously using WeasyPrint (or write HTML fallback)."""
         try:
             import weasyprint
             weasyprint.HTML(string=html_content).write_pdf(target=str(destination_path))
@@ -319,10 +304,7 @@ class PDFGeneratorService:
             destination_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
 
     async def generate_pdf(self, markdown_text: str, title: str, filename_prefix: str = "tutorial") -> str:
-        """
-        Asynchronously compiles Markdown text to PDF.
-        Returns the absolute filesystem path of the compiled artifact.
-        """
+        """Compile markdown to PDF off-thread and return the file path."""
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_prefix = "".join(c for c in filename_prefix if c.isalnum() or c in ("-", "_")).lower()
         filename = f"{safe_prefix}_{timestamp}.pdf"
@@ -330,7 +312,7 @@ class PDFGeneratorService:
 
         html_content = self.compile_html(markdown_text, title)
 
-        # Offload CPU/C-library bound PDF rendering to a background worker thread
+        # Offload to thread to keep the event loop responsive
         await asyncio.to_thread(self._sync_render_pdf, html_content, output_path)
 
         return str(output_path.resolve())

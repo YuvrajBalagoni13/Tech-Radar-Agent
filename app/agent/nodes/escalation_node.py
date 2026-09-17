@@ -1,8 +1,4 @@
-"""
-Telegram Timeout Escalation Node.
-Triggered when an interactive Discord alert remains unacknowledged past the escalation SLA.
-Dispatches high-priority Telegram alert with interactive inline action buttons (100% Free Forever).
-"""
+"""Escalation node: sends a Telegram alert if an alert timed out on Discord."""
 
 import logging
 from typing import Any, Dict
@@ -15,10 +11,7 @@ logger = logging.getLogger("techradar.escalation_node")
 
 
 async def escalation_node(state: AgentState, config: RunnableConfig = None) -> Dict[str, Any]:
-    """
-    Dispatches escalation notification to Telegram via Telegram Bot API.
-    Interrupt checkpoint occurs immediately after this node.
-    """
+    """Send an escalation alert to Telegram before the interrupt checkpoint."""
     thread_id = "default-thread"
     if config and "configurable" in config:
         thread_id = config["configurable"].get("thread_id", thread_id)

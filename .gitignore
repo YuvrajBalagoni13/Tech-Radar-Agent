@@ -81,6 +81,7 @@ artifacts/*.pdf
 *.pdf
 eval_output/
 reports/
+docs/
 
 # ------------------------------------------------------------------------------
 # 6. Database Volumes, Local Stores & Deduplication Dumps

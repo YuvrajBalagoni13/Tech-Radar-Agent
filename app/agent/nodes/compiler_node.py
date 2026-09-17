@@ -1,8 +1,4 @@
-"""
-PDF Compilation and Delivery Node.
-Renders synthesized markdown into an executive PDF whitepaper via WeasyPrint
-and delivers the compiled artifact across registered communication adapters (Discord/Telegram).
-"""
+"""Compiles markdown into PDF and sends it via Discord or Telegram."""
 
 import logging
 from typing import Any, Dict
@@ -16,10 +12,7 @@ logger = logging.getLogger("techradar.compiler_node")
 
 
 async def compiler_node(state: AgentState) -> Dict[str, Any]:
-    """
-    Compiles markdown tutorial into styled PDF and delivers to developer endpoints.
-    Delivers directly to Discord DM if DISCORD_USER_ID is configured.
-    """
+    """Render markdown brief as PDF and send to the user's notification channel."""
     release_raw = state.get("release_item")
     if isinstance(release_raw, dict):
         release = TechReleaseItem(**release_raw)

@@ -1,7 +1,4 @@
-"""
-SQLAlchemy ORM Entities for PostgreSQL with pgvector.
-Implements UserProfile and ProcessedRelease entities with HNSW indexes for sub-10ms similarity search.
-"""
+"""SQLAlchemy ORM entities for user profiles and processed releases with pgvector."""
 
 import uuid
 from sqlalchemy import (
@@ -19,10 +16,7 @@ from app.core.database import Base
 
 
 class UserProfile(Base):
-    """
-    User profile entity defining developer technical interests, notification endpoints,
-    and the dense 1536-dimensional embedding vector representing their technical radar footprint.
-    """
+    """User profile entity storing notification settings, tracked domains, and profile embedding."""
 
     __tablename__ = "user_profiles"
 
@@ -57,10 +51,7 @@ class UserProfile(Base):
 
 
 class ProcessedRelease(Base):
-    """
-    Processed technical release item entity ensuring strict idempotency via SHA-256 content hashing.
-    Indexed with HNSW vector search to allow semantic historical deduplication and query lookups.
-    """
+    """Processed release entity storing title, content hash, and vector embedding."""
 
     __tablename__ = "processed_releases"
 

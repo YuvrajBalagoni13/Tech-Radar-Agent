@@ -1,8 +1,4 @@
-"""
-LangGraph AgentState schema definition.
-Implements immutable state transitions across multi-stage filtering, alerting,
-human-in-the-loop callbacks, and artifact generation.
-"""
+"""LangGraph AgentState schema."""
 
 from typing import Any, Dict, List, Optional, Union
 from typing_extensions import TypedDict
@@ -10,10 +6,7 @@ from app.models.schemas import TechReleaseItem
 
 
 class AgentState(TypedDict):
-    """
-    Core state schema passed through the LangGraph StateGraph nodes.
-    Maintains checkpointed context across asynchronous human-in-the-loop interactions.
-    """
+    """Shared state passed between LangGraph nodes."""
 
     release_item: Union[TechReleaseItem, Dict[str, Any]]
     user_id: str

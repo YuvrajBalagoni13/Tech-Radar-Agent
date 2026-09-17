@@ -1,9 +1,4 @@
-"""
-Discord Client and Interaction Handler.
-Implements Slash Commands (/radar track, /radar ignore, /radar threshold, /radar list),
-Button Click Callbacks for LangGraph human-in-the-loop checkpoint resumption,
-and Dynamic Embedding Synchronization in PostgreSQL with pgvector.
-"""
+"""Discord client handling slash commands, DM interactions, and approval button callbacks."""
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -18,10 +13,7 @@ logger = logging.getLogger("techradar.discord_bot")
 
 
 async def sync_user_embedding(user: UserProfile) -> List[float]:
-    """
-    Regenerate dense 1536-dimensional vector for developer profile and persist to PostgreSQL.
-    Combines both personal profile bio/interests and explicit tracked domains into the vector.
-    """
+    """Recompute and update profile embedding vector from user bio and tracked domains."""
     domains_str = ", ".join(user.tracked_domains) if user.tracked_domains else "Software Architecture"
     summary = (getattr(user, "profile_summary", "") or "").strip()
     if summary and not summary.startswith("Default developer profile"):
@@ -36,14 +28,11 @@ async def sync_user_embedding(user: UserProfile) -> List[float]:
 
 
 class DiscordInteractionHandler:
-    """
-    Processes Discord Gateway interactions and HTTP webhook callbacks.
-    Executes slash command logic and resumes interrupted LangGraph checkpoint threads.
-    """
+    """Handles slash commands and button clicks to control agent tracking and approval."""
 
     @staticmethod
     async def get_or_create_user(discord_id: str, session: Any) -> UserProfile:
-        """Fetch user profile by Discord snowflake ID or provision a new developer entry."""
+        """Fetch user profile by Discord ID or create a default one."""
         stmt = select(UserProfile).where(UserProfile.discord_id == discord_id)
         res = await session.execute(stmt)
         user = res.scalars().first()
@@ -67,9 +56,7 @@ class DiscordInteractionHandler:
 
     @classmethod
     async def handle_slash_command(cls, name: str, options: Dict[str, Any], user_discord_id: str) -> Dict[str, Any]:
-        """
-        Execute /radar slash commands with dynamic embedding recalculation.
-        """
+        """Handle /radar slash commands (track, ignore, threshold, list, research)."""
         async with AsyncSessionLocal() as session:
             user = await cls.get_or_create_user(user_discord_id, session)
 
@@ -290,10 +277,7 @@ from discord.ext import commands
 
 
 class TechRadarDiscordBot(commands.Bot):
-    """
-    Discord Gateway Bot supporting Direct Messages (DMs), slash commands,
-    and button interactions directly within private user conversations.
-    """
+    """Discord bot client supporting DMs and slash commands."""
 
     def __init__(self, intents: Optional[discord.Intents] = None):
         if intents is None:
@@ -530,7 +514,7 @@ _discord_bot_task: Optional[asyncio.Task] = None
 
 
 async def start_discord_gateway() -> None:
-    """Start Discord Gateway connection in the background if token configured."""
+    """Start Discord gateway client in the background if configured."""
     global _discord_bot_instance, _discord_bot_task
     token = settings.DISCORD_BOT_TOKEN
     if not token or token.startswith("your-") or token.startswith("your_"):
@@ -562,7 +546,7 @@ async def start_discord_gateway() -> None:
 
 
 async def stop_discord_gateway() -> None:
-    """Gracefully disconnect Discord Gateway bot on application shutdown."""
+    """Disconnect Discord bot on shutdown."""
     global _discord_bot_instance, _discord_bot_task
     if _discord_bot_instance and not _discord_bot_instance.is_closed():
         try:

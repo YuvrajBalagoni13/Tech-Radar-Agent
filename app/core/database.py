@@ -1,7 +1,4 @@
-"""
-Database connection pool, engine lifecycle, and pgvector extension management.
-Provides asynchronous SQLAlchemy sessions and LangGraph checkpoint persistence connections.
-"""
+"""Database connection and session setup using asyncpg and pgvector."""
 
 import logging
 from typing import AsyncGenerator
@@ -17,10 +14,10 @@ from app.core.config import settings
 
 logger = logging.getLogger("techradar.database")
 
-# Declarative metadata base for all SQLAlchemy entities
+# Base model for SQLAlchemy entities
 Base = declarative_base()
 
-# Asynchronous engine with enterprise-grade connection pooling
+# Async engine with connection pooling
 engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
     echo=(settings.LOG_LEVEL.upper() == "DEBUG"),
@@ -30,7 +27,7 @@ engine: AsyncEngine = create_async_engine(
     pool_pre_ping=True,
 )
 
-# Async session factory configured with expire_on_commit=False to avoid lazy-load race conditions
+# Async session factory
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -41,10 +38,7 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    FastAPI dependency injection generator yielding an async SQLAlchemy session.
-    Guarantees session cleanup and automatic rollback on unhandled exceptions.
-    """
+    """Dependency for yielding an async database session."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -57,10 +51,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """
-    Bootstrap database schema and register pgvector extension.
-    Executes during FastAPI application startup lifecycle.
-    """
+    """Create extensions and tables on startup."""
     logger.info("Initializing database extensions and schemas...")
     async with engine.begin() as conn:
         # Enable pgvector and uuid-ossp extensions
@@ -74,9 +65,7 @@ async def init_db() -> None:
 
 
 async def close_db() -> None:
-    """
-    Gracefully dispose of database engine connection pools on shutdown.
-    """
+    """Close engine connection pool on shutdown."""
     logger.info("Disposing of database engine connection pool...")
     await engine.dispose()
     logger.info("Database connection pool closed.")

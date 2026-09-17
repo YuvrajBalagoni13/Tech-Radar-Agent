@@ -1,12 +1,4 @@
-"""
-Autonomous Tech Radar - Comprehensive Evaluation & Benchmarking Suite.
-Measures:
-1. Cross-Domain Separation Margin (Cosine distance between in-domain and out-of-domain papers)
-2. False Attribution Rate (Zero-tolerance test ensuring unrelated preprints never receive fake domain tags)
-3. Planner Taxonomy Accuracy (Dynamic mapping of profiles to arXiv categories and search terms)
-4. Search Mode Discrimination (Verification of 'latest' vs 'foundational' query strategies)
-5. Synthesis Grounding (Verification that tutorials are strictly grounded in paper abstracts)
-"""
+"""Evaluation suite benchmarking domain separation, taxonomy mapping, and grounded synthesis."""
 
 import asyncio
 import os

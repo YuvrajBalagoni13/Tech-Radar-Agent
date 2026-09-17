@@ -1,7 +1,4 @@
-"""
-Application configuration module powered by Pydantic v2 Settings.
-Validates environment variables, connection strings, API tokens, and operational thresholds.
-"""
+"""Application settings loaded from environment variables and .env file."""
 
 from typing import Optional
 from pydantic import Field, field_validator
@@ -9,10 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Centralized configuration management with type validation and environment loading.
-    Conforms to the 12-Factor App methodology for enterprise cloud deployments.
-    """
+    """App settings and environment variable definitions."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -77,7 +71,7 @@ class Settings(BaseSettings):
     DISCORD_USER_ID: str = Field(default="", description="Target Discord User Snowflake ID for Direct Message (DM) alerts")
     DISCORD_CHANNEL_ID: str = Field(default="", description="Optional fallback Discord channel ID for radar alerts")
 
-    # Telegram Bot Integration (100% Free Forever)
+    # Telegram Bot Integration
     TELEGRAM_BOT_TOKEN: str = Field(default="", description="Telegram Bot authentication token from @BotFather")
     TELEGRAM_CHAT_ID: str = Field(default="", description="Target Telegram chat ID or channel username for alerts")
 
@@ -95,5 +89,5 @@ class Settings(BaseSettings):
         return v
 
 
-# Global singleton settings instance
+# Global settings instance
 settings = Settings()

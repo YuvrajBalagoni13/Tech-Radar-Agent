@@ -1,8 +1,4 @@
-"""
-Targeted Ingestion Service for Tech Radar Agent.
-Asynchronously polls HackerNews API, arXiv AI papers, and GitHub Trending/Releases.
-Enforces SHA-256 cryptographic hashing to guarantee idempotent data ingestion.
-"""
+"""Ingestion service for polling HackerNews, arXiv, and GitHub feeds with SHA-256 deduplication."""
 
 import asyncio
 import hashlib
@@ -17,10 +13,7 @@ logger = logging.getLogger("techradar.ingestion")
 
 
 class IngestionService:
-    """
-    Ingestion engine responsible for polling multi-source developer feeds,
-    generating deterministic SHA-256 fingerprints, and normalizing raw metadata.
-    """
+    """Polls developer feeds, computes SHA-256 hashes, and normalizes items."""
 
     def __init__(self, timeout_seconds: float = 15.0):
         self.timeout = timeout_seconds
@@ -30,19 +23,12 @@ class IngestionService:
 
     @staticmethod
     def calculate_content_hash(source_url: str, title: str) -> str:
-        """
-        Generate a deterministic SHA-256 hash from canonical URL and normalized title.
-        Ensures idempotent processing and eliminates duplicate alerts.
-        """
+        """Generate a SHA-256 hash from URL and title for deduplication."""
         normalized_str = f"{source_url.strip().lower()}::{title.strip().lower()}"
         return hashlib.sha256(normalized_str.encode("utf-8")).hexdigest()
 
     async def fetch_hackernews_top(self, limit: int = 15, only_unseen: bool = True) -> List[TechReleaseItem]:
-        """
-        Ingest top technical stories from the official HackerNews Firebase REST API.
-        If only_unseen=True, pages through candidate stories until `limit` unseen items
-        are gathered or the safety candidate ceiling (100 IDs) is reached.
-        """
+        """Fetch top stories from the HackerNews Firebase API."""
         from app.services.dedup_store import DeduplicationStore
 
         items: List[TechReleaseItem] = []
@@ -100,14 +86,7 @@ class IngestionService:
         only_unseen: bool = True,
         plan: Optional[SearchPlan] = None,
     ) -> List[TechReleaseItem]:
-        """
-        Query the official arXiv API for recent preprints.
-        Dynamically adapts categories and query terms based on SearchPlan if provided;
-        otherwise defaults to Artificial Intelligence, Computation & Language, ML, and SE.
-        Supports discovery_mode: 'latest' (submittedDate) vs 'foundational' (relevance).
-        If only_unseen=True, pages through up to max_pages (safety ceiling) until max_results
-        unseen papers are collected.
-        """
+        """Query the arXiv API for papers based on search plan or default categories."""
         from app.services.dedup_store import DeduplicationStore
 
         items: List[TechReleaseItem] = []
@@ -236,11 +215,7 @@ class IngestionService:
         only_unseen: bool = True,
         plan: Optional[SearchPlan] = None,
     ) -> List[TechReleaseItem]:
-        """
-        Poll GitHub Search API for trending repositories and recent breakthrough toolkits.
-        Adapts query and sorting based on SearchPlan if provided.
-        If only_unseen=True, pages up to max_pages until limit unseen repos are retrieved.
-        """
+        """Query the GitHub search API for trending repos."""
         from app.services.dedup_store import DeduplicationStore
 
         items: List[TechReleaseItem] = []
@@ -330,13 +305,7 @@ class IngestionService:
         only_unseen: bool = True,
         plan: Optional[SearchPlan] = None,
     ) -> List[TechReleaseItem]:
-        """
-        Aggregate technical publications across user-specified sources.
-        Supported source identifiers: 'arxiv', 'hackernews', 'github'.
-        Passes dynamic SearchPlan to arXiv and GitHub fetchers.
-        If only_unseen=True, pages through feeds until target count of unseen items is met.
-        Defaults to all sources if None provided.
-        """
+        """Fetch items across requested sources (HackerNews, arXiv, GitHub)."""
         active = [s.lower().strip() for s in (sources or ["hackernews", "arxiv", "github"])]
         lim = limit_per_source if limit_per_source is not None else 10
 

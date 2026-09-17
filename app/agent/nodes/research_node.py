@@ -1,8 +1,4 @@
-"""
-Domain-Scoped Multi-Query Research Node.
-Constructs targeted search queries constrained to the developer's declared architecture stack
-and user prompt overrides to retrieve benchmark results and GitHub implementation details.
-"""
+"""Executes search queries for a release item to retrieve context and benchmark trade-offs."""
 
 import logging
 from typing import Any, Dict, List
@@ -14,9 +10,7 @@ logger = logging.getLogger("techradar.research_node")
 
 
 async def research_node(state: AgentState) -> Dict[str, Any]:
-    """
-    Executes domain-scoped search and gathers technical citations and architecture trade-offs.
-    """
+    """Run search queries scoped to matched domains and gather research notes."""
     release_raw = state.get("release_item")
     if isinstance(release_raw, dict):
         release = TechReleaseItem(**release_raw)
@@ -28,14 +22,14 @@ async def research_node(state: AgentState) -> Dict[str, Any]:
 
     search_service = TechnicalSearchService()
 
-    # Formulate domain-scoped query strictly following technical requirements
+    # Primary query scoped to matched domains
     primary_query = search_service.construct_scoped_query(
         release_title=release.title,
         matched_domains=matched_domains,
         user_prompt_override=user_prompt_override,
     )
 
-    # Formulate secondary query specifically targeting benchmarks and architecture limits
+    # Secondary query targeting benchmarks and trade-offs
     domains_str = ", ".join(matched_domains) if matched_domains else "System Architecture"
     secondary_query = f"{release.title} architecture benchmarks trade-offs scalability limitations ({domains_str})"
 

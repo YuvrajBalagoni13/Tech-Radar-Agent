@@ -1,8 +1,4 @@
-"""
-Search Strategy & Taxonomy Planner Node.
-Intelligently compiles developer profile interests, tracked domains, and discovery mode
-into a structured SearchPlan with exact arXiv taxonomy codes, GitHub topics, and grounding anchors.
-"""
+"""Generates search plans and resolves arXiv categories from user interests or queries."""
 
 import json
 import logging
@@ -15,7 +11,7 @@ from app.models.schemas import SearchPlan
 
 logger = logging.getLogger("techradar.planner_node")
 
-# Standard taxonomy dictionary for fast zero-cost local resolution
+# Built-in category mappings for offline mode
 KNOWN_TAXONOMY: Dict[str, Dict[str, Any]] = {
     "image generation": {
         "categories": ["cs.CV", "eess.IV"],
@@ -104,7 +100,7 @@ def _resolve_taxonomy_locally(
     discovery_mode: str,
     ignored_keywords: List[str],
 ) -> SearchPlan:
-    """Deterministic local taxonomy solver with multi-domain union and anchor extraction."""
+    """Map tracked domains to arXiv categories and search terms locally."""
     categories: set[str] = set()
     query_terms: list[str] = []
     github_topics: set[str] = set()
@@ -164,17 +160,13 @@ async def generate_search_plan(
     user: UserProfile,
     discovery_mode: str = "latest",
 ) -> SearchPlan:
-    """
-    Generate an actionable SearchPlan for multi-source ingestion and verification.
-    Attempts LLM synthesis via Groq for high-nuance understanding, falling back
-    instantly to high-coverage deterministic taxonomy resolution.
-    """
+    """Build a search plan for user profile ingestion, falling back to taxonomy mapping if Groq fails."""
     tracked = list(getattr(user, "tracked_domains", None) or [])
     summary = str(getattr(user, "profile_summary", "") or "").strip()
     ignored = list(getattr(user, "ignored_keywords", None) or [])
     user_id = str(getattr(user, "user_id", "default_user"))
 
-    # Try fast Groq LPU reasoning if available
+    # Try Groq if configured
     if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("gsk_your"):
         try:
             prompt = (
@@ -227,7 +219,7 @@ async def generate_search_plan(
         except Exception as e:
             logger.warning(f"Groq LLM planning failed: {e}. Falling back to deterministic taxonomy solver.")
 
-    # High-coverage deterministic solver fallback
+    # Fallback to local taxonomy matching
     plan = _resolve_taxonomy_locally(tracked, summary, discovery_mode, ignored)
     plan.user_id = user_id
     logger.info(f"Generated deterministic SearchPlan for {user_id}: categories={plan.arxiv_categories}, mode={discovery_mode}")
@@ -238,15 +230,11 @@ async def plan_ad_hoc_research(
     query: str,
     user_id: str = "ad_hoc_user",
 ) -> SearchPlan:
-    """
-    Dynamically constructs an actionable SearchPlan for an ad-hoc natural language query.
-    Detects user intent (foundational/thesis learning vs breaking latest work),
-    maps topics to exact arXiv categories and query terms, and sets domain anchors.
-    """
+    """Build a search plan for a one-off query (handles foundational learning vs latest work)."""
     clean_query = query.strip()
     query_lower = clean_query.lower()
 
-    # Intent detection
+    # Detect if query asks for background/study vs breaking work
     foundational_keywords = {
         "thesis", "learn", "learning", "study", "studying", "foundations",
         "foundational", "principles", "survey", "history", "seminal",
@@ -257,7 +245,7 @@ async def plan_ad_hoc_research(
 
     discovery_mode = "latest" if (has_latest and not has_foundational) else "foundational" if has_foundational else "foundational"
 
-    # Try fast Groq LPU reasoning if available
+    # Try Groq first
     if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("gsk_your"):
         try:
             prompt = (
@@ -308,8 +296,7 @@ async def plan_ad_hoc_research(
         except Exception as e:
             logger.warning(f"Groq LLM ad-hoc planning failed: {e}. Falling back to deterministic solver.")
 
-    # High-coverage deterministic solver fallback
-    # Filter stopwords from query to identify core technical concepts
+    # Fallback: strip stopwords to find core query concepts
     stopwords = {
         "i", "me", "my", "we", "our", "you", "your", "he", "she", "it", "they",
         "have", "has", "had", "having", "do", "does", "did", "doing",
@@ -333,7 +320,7 @@ async def plan_ad_hoc_research(
     github_topics: set[str] = set()
     anchors: set[str] = set()
 
-    # Match against KNOWN_TAXONOMY
+    # Match against known taxonomy
     matched_any = False
     for key, spec in KNOWN_TAXONOMY.items():
         if key in query_lower or any(w in key.split() for w in core_words):
@@ -350,13 +337,13 @@ async def plan_ad_hoc_research(
                 anchors.add(w)
         categories.update(["cs.AI", "cs.LG"])
 
-    # Ensure core keywords are present in query_terms at the beginning
+    # Keep core keywords at the front
     if candidate_concept and candidate_concept not in query_terms:
         query_terms.insert(0, candidate_concept)
 
     sort_by = "relevance" if discovery_mode == "foundational" else "submittedDate"
 
-    # Deduplicate terms
+    # Deduplicate terms preserving order
     unique_terms = []
     for t in query_terms:
         if t not in unique_terms:

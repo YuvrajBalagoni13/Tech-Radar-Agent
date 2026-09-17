@@ -1,8 +1,4 @@
-"""
-FastAPI Enterprise Asynchronous Microservice.
-Provides Discord interaction callbacks, Telegram bot webhooks,
-REST APIs for developer profile configuration, and background periodic ingestion polling.
-"""
+"""FastAPI application for bot webhooks, user profile endpoints, and background ingestion."""
 
 import asyncio
 import logging
@@ -52,10 +48,7 @@ _polling_task: Optional[asyncio.Task] = None
 
 
 async def periodic_ingestion_worker() -> None:
-    """
-    Background worker periodically polling HackerNews, arXiv, and GitHub feeds.
-    Dispatches newly discovered items through the LangGraph StateMachine.
-    """
+    """Background loop polling feeds and running releases through the radar graph."""
     logger.info("Starting background periodic ingestion worker...")
     ingestion_service = IngestionService()
     graph = get_radar_graph()
@@ -111,10 +104,7 @@ async def periodic_ingestion_worker() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    FastAPI lifespan manager orchestrating startup and shutdown procedures.
-    Initializes PostgreSQL extensions, tables, and starts background polling tasks.
-    """
+    """Lifespan handler: starts database connections and background workers."""
     global _polling_task
     logger.info("Starting Autonomous Tech Radar & Just-In-Time Learning Agent...")
 
@@ -175,7 +165,7 @@ app.add_middleware(
 
 @app.get("/health", tags=["System"])
 async def health_check() -> Dict[str, Any]:
-    """Health check endpoint confirming service status and operational parameters."""
+    """Health check endpoint."""
     return {
         "status": "healthy",
         "service": "tech-radar-agent",
@@ -191,9 +181,7 @@ async def health_check() -> Dict[str, Any]:
 
 @app.post("/api/v1/bot/discord/interactions", tags=["Discord Bot"])
 async def discord_interactions(request: Request) -> Dict[str, Any]:
-    """
-    Discord Gateway interaction receiver handling slash commands and button clicks.
-    """
+    """Handle Discord webhook interactions (slash commands and button callbacks)."""
     payload = await request.json()
     interaction_type = payload.get("type")
 
@@ -233,11 +221,7 @@ async def discord_interactions(request: Request) -> Dict[str, Any]:
 
 @app.post("/api/v1/bot/telegram/webhook", tags=["Telegram Bot"])
 async def telegram_webhook(update: TelegramUpdate) -> Dict[str, Any]:
-    """
-    Telegram Bot API Webhook.
-    Receives text commands (/start, /track, /ignore, /status, /threshold, /yes, /skip)
-    and inline keyboard callback clicks (1-click tutorial synthesis or dismissal).
-    """
+    """Handle incoming Telegram webhook updates."""
     return await TelegramWebhookHandler.process_update(update)
 
 
@@ -247,7 +231,7 @@ async def telegram_webhook(update: TelegramUpdate) -> Dict[str, Any]:
 
 @app.post("/api/v1/users", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED, tags=["User Profiles"])
 async def create_user_profile(payload: UserProfileCreate, db: AsyncSession = Depends(get_db)):
-    """Register new developer profile and compute initial vector embedding."""
+    """Register a developer profile and compute its vector embedding."""
     stmt = select(UserProfile).where(UserProfile.user_id == payload.user_id)
     existing = (await db.execute(stmt)).scalars().first()
     if existing:
@@ -282,7 +266,7 @@ async def get_user_profile(user_id: str, db: AsyncSession = Depends(get_db)):
 
 @app.put("/api/v1/users/{user_id}/domains", response_model=UserProfileResponse, tags=["User Profiles"])
 async def update_user_domains(user_id: str, payload: UserProfileUpdate, db: AsyncSession = Depends(get_db)):
-    """Update tracked domains or negative keywords with dynamic vector recalculation."""
+    """Update tracked domains or negative filters and recalculate embedding."""
     stmt = select(UserProfile).where(UserProfile.user_id == user_id)
     user = (await db.execute(stmt)).scalars().first()
     if not user:
@@ -313,7 +297,7 @@ async def update_user_domains(user_id: str, payload: UserProfileUpdate, db: Asyn
 
 @app.post("/api/v1/radar/ingest", tags=["Radar Execution"])
 async def trigger_ingestion(background_tasks: BackgroundTasks) -> Dict[str, Any]:
-    """Manually trigger immediate multi-source feed ingestion cycle."""
+    """Manually trigger an ingestion cycle across sources."""
     async def _run():
         service = IngestionService()
         items = await service.ingest_all()
@@ -342,7 +326,7 @@ async def trigger_ingestion(background_tasks: BackgroundTasks) -> Dict[str, Any]
 
 @app.post("/api/v1/radar/threads/{thread_id}/resume", tags=["Radar Execution"])
 async def resume_workflow_thread(thread_id: str, callback: InteractionCallback) -> Dict[str, Any]:
-    """Manually resume an interrupted LangGraph checkpoint thread via REST."""
+    """Resume a paused workflow thread with approval or skip action."""
     result = await resume_graph(
         thread_id=thread_id,
         action=callback.action,

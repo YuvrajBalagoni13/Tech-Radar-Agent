@@ -1,8 +1,4 @@
-"""
-LangGraph StateGraph Workflow Orchestrator.
-Defines execution topology, conditional routing, human-in-the-loop checkpoints,
-and state resumption mechanics backed by AsyncPostgresSaver.
-"""
+"""LangGraph workflow definition and state resumption helpers."""
 
 import logging
 from typing import Any, Dict, Optional
@@ -22,17 +18,13 @@ from app.core.config import settings
 
 logger = logging.getLogger("techradar.graph")
 
-# In-memory checkpointer fallback for standalone execution and unit testing
+# Fallback checkpointer for local/tests
 _in_memory_checkpointer = MemorySaver()
 _cached_graph = None
 
 
 def route_filter(state: AgentState) -> str:
-    """
-    Conditional edge router following 3-stage domain filter.
-    Routes relevant items to configured primary channel (Telegram or Discord).
-    Drops irrelevant items to END.
-    """
+    """Route relevant papers to Discord/Telegram, or drop if irrelevant."""
     if state.get("is_relevant", False):
         primary = getattr(settings, "PRIMARY_NOTIFICATION_CHANNEL", "DISCORD").upper()
         user_id = str(state.get("user_id", ""))
@@ -43,9 +35,7 @@ def route_filter(state: AgentState) -> str:
 
 
 def route_discord_decision(state: AgentState) -> str:
-    """
-    Conditional edge router evaluating developer interaction or timeout escalation.
-    """
+    """Check user decision from Discord (approve/skip/escalate)."""
     status = state.get("notification_status")
     if status == "USER_APPROVED":
         return "conduct_research"
@@ -58,9 +48,7 @@ def route_discord_decision(state: AgentState) -> str:
 
 
 def route_telegram_decision(state: AgentState) -> str:
-    """
-    Conditional edge router evaluating Telegram reply commands or button callbacks.
-    """
+    """Check user decision from Telegram (approve/skip)."""
     status = state.get("notification_status")
     if status == "USER_APPROVED":
         return "conduct_research"
@@ -70,15 +58,12 @@ def route_telegram_decision(state: AgentState) -> str:
 
 
 def create_radar_graph(checkpointer: Optional[BaseCheckpointSaver] = None) -> Any:
-    """
-    Assemble and compile the complete autonomous Tech Radar LangGraph state machine.
-    Configures interrupt checkpoints after alert dispatch to await human authorization.
-    """
+    """Build and compile the main radar state graph."""
     saver = checkpointer if checkpointer is not None else _in_memory_checkpointer
 
     builder = StateGraph(AgentState)
 
-    # 1. Register Execution Nodes
+    # Nodes
     builder.add_node("domain_filter", domain_filter_node)
     builder.add_node("send_discord_alert", notification_node)
     builder.add_node("escalate_to_telegram", escalation_node)
@@ -86,7 +71,7 @@ def create_radar_graph(checkpointer: Optional[BaseCheckpointSaver] = None) -> An
     builder.add_node("synthesize_tutorial", synthesis_node)
     builder.add_node("compile_and_deliver_pdf", compiler_node)
 
-    # 2. Configure Transitions & Conditional Routing
+    # Edges & routing
     builder.add_edge(START, "domain_filter")
 
     builder.add_conditional_edges(
@@ -122,7 +107,7 @@ def create_radar_graph(checkpointer: Optional[BaseCheckpointSaver] = None) -> An
     builder.add_edge("synthesize_tutorial", "compile_and_deliver_pdf")
     builder.add_edge("compile_and_deliver_pdf", END)
 
-    # Compile with human-in-the-loop checkpoints
+    # Pause after sending alerts to wait for user click/command
     compiled_graph = builder.compile(
         checkpointer=saver,
         interrupt_after=["send_discord_alert", "escalate_to_telegram"],
@@ -133,9 +118,7 @@ def create_radar_graph(checkpointer: Optional[BaseCheckpointSaver] = None) -> An
 
 
 def get_radar_graph() -> Any:
-    """
-    Retrieve or initialize the active singleton compiled radar workflow graph.
-    """
+    """Get or create singleton graph instance."""
     global _cached_graph
     if _cached_graph is None:
         _cached_graph = create_radar_graph()
@@ -148,10 +131,7 @@ async def resume_graph(
     user_prompt_override: Optional[str] = None,
     graph: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """
-    Resume an interrupted LangGraph execution thread following user interaction.
-    Maps interaction callbacks to state updates and runs workflow to terminal completion.
-    """
+    """Resume a paused thread after user approves or skips."""
     active_graph = graph or get_radar_graph()
     config = {"configurable": {"thread_id": thread_id}}
 
@@ -170,10 +150,9 @@ async def resume_graph(
 
     logger.info(f"Resuming LangGraph thread '{thread_id}' with action='{action}' (status={notification_status})")
 
-    # Mutate checkpoint state with user callback decision
+    # Update state and resume execution
     await active_graph.aupdate_state(config, update_payload)
 
-    # Resume graph execution from interrupted boundary
     final_state = await active_graph.ainvoke(None, config=config)
     logger.info(f"Thread '{thread_id}' execution completed. Notification status: {final_state.get('notification_status')}")
     return final_state
