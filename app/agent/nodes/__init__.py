@@ -8,7 +8,7 @@ from app.agent.nodes.escalation_node import escalation_node
 from app.agent.nodes.research_node import research_node
 from app.agent.nodes.synthesis_node import synthesis_node
 from app.agent.nodes.compiler_node import compiler_node
-from app.agent.nodes.planner_node import generate_search_plan
+from app.agent.nodes.planner_node import generate_search_plan, load_arxiv_taxonomy
 
 __all__ = [
     "domain_filter_node",
@@ -18,4 +18,5 @@ __all__ = [
     "synthesis_node",
     "compiler_node",
     "generate_search_plan",
+    "load_arxiv_taxonomy",
 ]
