@@ -16,54 +16,31 @@ from app.agent.state import AgentState
 logger = logging.getLogger("techradar.filter_node")
 
 
-def calculate_cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
-    """Compute cosine similarity between two vectors."""
-    if not vec_a or not vec_b or len(vec_a) != len(vec_b):
-        return 0.0
-
-    dot_product = sum(a * b for a, b in zip(vec_a, vec_b))
-    norm_a = math.sqrt(sum(a * a for a in vec_a))
-    norm_b = math.sqrt(sum(b * b for b in vec_b))
-
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
-
-    return dot_product / (norm_a * norm_b)
+from app.services.embedding import calculate_cosine_similarity, generate_embedding
 
 
-async def generate_embedding(text: str) -> List[float]:
-    """Generate normalized bag-of-words / n-gram embedding."""
-    dim = settings.EMBEDDING_DIMENSIONS
-    words = re.findall(r"\w+", text.lower())
-    topic_vec = [0.0] * dim
-    for w in words:
-        h = int(hashlib.md5(w.encode("utf-8")).hexdigest(), 16)
-        topic_vec[h % dim] += 1.5
-    for i in range(len(words) - 1):
-        bigram = f"{words[i]}_{words[i+1]}"
-        h = int(hashlib.md5(bigram.encode("utf-8")).hexdigest(), 16)
-        topic_vec[h % dim] += 2.0
-    for w in words:
-        if len(w) >= 4:
-            for j in range(len(w) - 3):
-                h = int(hashlib.md5(w[j:j+4].encode("utf-8")).hexdigest(), 16)
-                topic_vec[h % dim] += 0.4
-
-    norm = math.sqrt(sum(x * x for x in topic_vec)) or 1.0
-    return [x / norm for x in topic_vec]
+# In-memory cache for user profile embeddings to prevent redundant LLM/API calls
+_USER_PROFILE_CACHE: Dict[str, List[float]] = {}
 
 
 async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
     """Run release through dedup, keyword, and embedding checks."""
     from app.agent.nodes.planner_node import KNOWN_TAXONOMY
 
-    # If state was explicitly pre-validated as relevant (e.g. testing fixture or manual override)
-    if state.get("is_relevant") is True and state.get("relevance_score", 0.0) >= settings.DEFAULT_SIMILARITY_THRESHOLD:
+    # If state was explicitly pre-validated (e.g. ad-hoc /research query that was already evaluated and ranked)
+    if state.get("is_prevalidated") is True or (
+        state.get("is_relevant") is True and state.get("relevance_score", 0.0) >= settings.DEFAULT_SIMILARITY_THRESHOLD
+    ):
+        matched_domains = state.get("matched_domains")
+        if not matched_domains and state.get("search_plan"):
+            plan_dict = state["search_plan"]
+            if isinstance(plan_dict, dict):
+                matched_domains = plan_dict.get("arxiv_categories")
         return {
             "is_relevant": True,
             "relevance_score": state.get("relevance_score", 0.95),
-            "matched_domains": state.get("matched_domains") or ["Distributed Systems"],
-            "filter_reason": state.get("filter_reason") or "Pre-validated relevance.",
+            "matched_domains": matched_domains or ["Ad-Hoc Research"],
+            "filter_reason": state.get("filter_reason") or "Pre-validated ad-hoc research query (bypassing daily feed filter).",
         }
 
     release_raw = state.get("release_item")
@@ -166,6 +143,9 @@ async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
     release_text = f"{release.title}: {release.summary}"
     release_vec = await generate_embedding(release_text)
 
+    if not user_profile_vec and user_id in _USER_PROFILE_CACHE:
+        user_profile_vec = _USER_PROFILE_CACHE[user_id]
+
     if not user_profile_vec:
         domains_str = ", ".join(user_tracked_domains) if user_tracked_domains else "Software Architecture"
         summary_val = getattr(user_record, "profile_summary", "") if user_record else ""
@@ -174,6 +154,9 @@ async def domain_filter_node(state: AgentState) -> Dict[str, Any]:
         else:
             profile_text = f"Developer interested in: {domains_str}"
         user_profile_vec = await generate_embedding(profile_text)
+        _USER_PROFILE_CACHE[user_id] = user_profile_vec
+        if user_record and hasattr(user_record, "profile_embedding"):
+            user_record.profile_embedding = user_profile_vec
 
     cosine_sim = calculate_cosine_similarity(release_vec, user_profile_vec)
 

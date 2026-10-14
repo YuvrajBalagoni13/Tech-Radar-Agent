@@ -11,6 +11,17 @@ from app.services.notifier import (
 )
 from app.services.search import TechnicalSearchService
 from app.services.pdf_generator import PDFGeneratorService
+from app.services.embedding import (
+    BaseEmbedder,
+    DeterministicEmbedder,
+    VoyageEmbedder,
+    GeminiEmbedder,
+    calculate_cosine_similarity,
+    get_embedder,
+    get_embedding,
+    compare_embeddings,
+    compare_embeddings_batch,
+)
 
 __all__ = [
     "IngestionService",
@@ -20,4 +31,13 @@ __all__ = [
     "NotificationService",
     "TechnicalSearchService",
     "PDFGeneratorService",
+    "BaseEmbedder",
+    "DeterministicEmbedder",
+    "VoyageEmbedder",
+    "GeminiEmbedder",
+    "calculate_cosine_similarity",
+    "get_embedder",
+    "get_embedding",
+    "compare_embeddings",
+    "compare_embeddings_batch",
 ]

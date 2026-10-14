@@ -108,14 +108,22 @@ class TelegramWebhookHandler:
             "text": text,
             "parse_mode": parse_mode,
         }
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(endpoint, json=body)
-                resp.raise_for_status()
-                return True
-        except Exception as e:
-            logger.error(f"Failed to send Telegram message reply: {e}", exc_info=True)
-            return False
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(endpoint, json=body)
+                    resp.raise_for_status()
+                    return True
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                if attempt < 2:
+                    await asyncio.sleep(1.5)
+                    continue
+                logger.error(f"Failed to send Telegram message reply after retries: {e}")
+                return False
+            except Exception as e:
+                logger.error(f"Failed to send Telegram message reply: {e}", exc_info=True)
+                return False
+        return False
 
     @classmethod
     async def _answer_callback_query(cls, callback_query_id: str, text: str) -> bool:
@@ -826,7 +834,7 @@ async def execute_ad_hoc_research(
     """Run ad-hoc literature research for a query, rank results, and dispatch alerts."""
     import uuid
     from app.agent.graph import get_radar_graph
-    from app.agent.nodes.domain_filter_node import calculate_cosine_similarity, generate_embedding
+    from app.services.embedding import calculate_cosine_similarity, get_embedder
     from app.agent.nodes.planner_node import plan_ad_hoc_research
     from app.services.ingestion import IngestionService
     from app.services.notifier import NotificationService
@@ -848,15 +856,17 @@ async def execute_ad_hoc_research(
             )
             return
 
-        # Generate dense 1536-dimensional vector for the ad-hoc query
-        query_vec = await generate_embedding(query)
+        # Single batch embedding for query and candidate papers
+        embedder = get_embedder()
+        query_vec = await embedder.embed(query, input_type="query")
+
+        paper_texts = [f"{item.title}: {item.summary}" for item in items]
+        paper_vecs = await embedder.embed_batch(paper_texts, input_type="document")
 
         scored_candidates = []
-        for item in items:
-            paper_text = f"{item.title}: {item.summary}"
-            paper_vec = await generate_embedding(paper_text)
+        for item, paper_vec in zip(items, paper_vecs):
             score = calculate_cosine_similarity(query_vec, paper_vec)
-
+            paper_text = f"{item.title}: {item.summary}"
             matched_anchors = [a for a in plan.anchor_concepts if a in paper_text.lower()]
             domain_label = plan.arxiv_categories[0] if plan.arxiv_categories else "Research Paper"
             if matched_anchors:
@@ -892,6 +902,7 @@ async def execute_ad_hoc_research(
                 "search_plan": plan.model_dump(),
                 "relevance_score": score,
                 "is_relevant": True,
+                "is_prevalidated": True,
                 "matched_domains": matched_domains,
                 "filter_reason": f"Ad-hoc research match (score: {score:.4f})",
                 "notification_status": "ESCALATED_TELEGRAM",

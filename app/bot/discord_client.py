@@ -176,14 +176,16 @@ class DiscordInteractionHandler:
                         if not items:
                             return
 
-                        query_vec = await generate_embedding(query)
-                        scored = []
-                        for it in items:
-                            txt = f"{it.title}: {it.summary}"
-                            pv = await generate_embedding(txt)
-                            sc = calculate_cosine_similarity(query_vec, pv)
-                            scored.append((sc, it))
+                        from app.services.embedding import get_embedder
+                        embedder = get_embedder()
+                        query_vec = await embedder.embed(query, input_type="query")
+                        paper_texts = [f"{it.title}: {it.summary}" for it in items]
+                        paper_vecs = await embedder.embed_batch(paper_texts, input_type="document")
 
+                        scored = [
+                            (calculate_cosine_similarity(query_vec, pv), it)
+                            for it, pv in zip(items, paper_vecs)
+                        ]
                         scored.sort(key=lambda x: x[0], reverse=True)
                         notifier = NotificationService()
                         for sc, it in scored[:3]:

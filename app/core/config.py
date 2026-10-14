@@ -41,7 +41,17 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = Field(default="", description="Groq API authentication token (gsk_...)")
     GROQ_API_BASE: str = Field(default="https://api.groq.com/openai/v1", description="Groq OpenAI-compatible API base URL")
     LLM_MODEL: str = Field(default="llama-3.3-70b-versatile", description="Primary generative LLM hosted on Groq LPUs")
+
+    # Embedding Providers & Vector Space
+    EMBEDDING_PROVIDER: str = Field(
+        default="deterministic",
+        description="Embedding provider: 'deterministic', 'voyage', or 'gemini'",
+    )
     EMBEDDING_DIMENSIONS: int = Field(default=1536, description="Vector space dimensionality for pgvector")
+    VOYAGE_API_KEY: str = Field(default="", description="Voyage AI API key")
+    VOYAGE_MODEL: str = Field(default="voyage-4-lite", description="Voyage AI embedding model")
+    GEMINI_API_KEY: str = Field(default="", description="Google Gemini API key for gemini-embedding-001")
+    GEMINI_MODEL: str = Field(default="gemini-embedding-001", description="Google Gemini embedding model")
 
     # Algorithmic & Channel Routing Settings
     PRIMARY_NOTIFICATION_CHANNEL: str = Field(

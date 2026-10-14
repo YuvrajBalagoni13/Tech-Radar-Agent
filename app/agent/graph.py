@@ -28,7 +28,11 @@ def route_filter(state: AgentState) -> str:
     if state.get("is_relevant", False):
         primary = getattr(settings, "PRIMARY_NOTIFICATION_CHANNEL", "DISCORD").upper()
         user_id = str(state.get("user_id", ""))
-        if primary == "TELEGRAM" or user_id.startswith("telegram_"):
+        if (
+            primary == "TELEGRAM"
+            or user_id.startswith("telegram_")
+            or state.get("notification_status") == "ESCALATED_TELEGRAM"
+        ):
             return "escalate_to_telegram"
         return "send_discord_alert"
     return END

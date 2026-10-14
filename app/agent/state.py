@@ -20,4 +20,5 @@ class AgentState(TypedDict):
     tutorial_markdown: Optional[str]
     pdf_artifact_path: Optional[str]
     search_plan: Optional[Dict[str, Any]]
+    is_prevalidated: Optional[bool]
     error_logs: List[str]

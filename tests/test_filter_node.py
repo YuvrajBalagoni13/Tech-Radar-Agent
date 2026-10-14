@@ -5,12 +5,14 @@ and pgvector cosine similarity evaluation.
 """
 
 import math
+from unittest.mock import AsyncMock, patch
 import pytest
 from app.agent.nodes.domain_filter_node import (
     calculate_cosine_similarity,
     domain_filter_node,
     generate_embedding,
 )
+from app.core.config import settings
 from app.agent.state import AgentState
 from app.models.schemas import TechReleaseItem
 from app.services.ingestion import IngestionService
@@ -36,7 +38,7 @@ def test_cosine_similarity_mathematics():
 async def test_embedding_generation_normalization():
     """Ensure embedding vectors have 1536 dimensions and unit Euclidean norm."""
     vec = await generate_embedding("Distributed systems consensus protocols via Raft")
-    assert len(vec) == 1536
+    assert len(vec) == settings.EMBEDDING_DIMENSIONS
     norm = math.sqrt(sum(x * x for x in vec))
     assert math.isclose(norm, 1.0, rel_tol=1e-4)
 
@@ -193,4 +195,92 @@ async def test_ingestion_service_top_k_unseen_pagination():
             assert len(items) == 2
             assert items[0].title == "Fresh Unseen Article 3"
             assert items[1].title == "Fresh Unseen Article 4"
+
+
+@pytest.mark.asyncio
+async def test_adhoc_research_prevalidation_bypass():
+    """Verify that an ad-hoc research item with is_prevalidated=True bypasses Stage 1-3 filters."""
+    item = TechReleaseItem(
+        title="What Matters in On-Policy Distillation?",
+        summary="Empirical study of on-policy RL distillation dynamics.",
+        source_url="https://arxiv.org/abs/2609.99999",
+        source_type="arxiv",
+    )
+
+    state: AgentState = {
+        "release_item": item,
+        "user_id": "user_adhoc",
+        "search_plan": {"arxiv_categories": ["cs.LG", "cs.AI"]},
+        "relevance_score": 0.88,
+        "is_relevant": True,
+        "is_prevalidated": True,
+        "matched_domains": ["cs.LG"],
+        "filter_reason": "Ad-hoc research match",
+        "notification_status": "ESCALATED_TELEGRAM",
+        "user_prompt_override": "Ad-hoc research query: distillation",
+        "research_notes": [],
+        "tutorial_markdown": None,
+        "pdf_artifact_path": None,
+        "error_logs": [],
+    }
+
+    # Even if DB dedup or user profile domains don't match, prevalidated item must pass
+    result = await domain_filter_node(state)
+    assert result["is_relevant"] is True
+    assert result["relevance_score"] == 0.88
+    assert "cs.LG" in result["matched_domains"]
+
+
+@pytest.mark.asyncio
+async def test_profile_embedding_caching():
+    """Verify that _USER_PROFILE_CACHE caches profile embeddings and reuses them."""
+    from app.agent.nodes.domain_filter_node import _USER_PROFILE_CACHE
+    from app.models.entities import UserProfile
+
+    user = UserProfile(
+        user_id="test_cached_user",
+        tracked_domains=["Computer Vision"],
+        profile_summary="Diffusion models",
+    )
+
+    item = TechReleaseItem(
+        title="Diffusion Models for Video",
+        summary="Novel video diffusion architecture.",
+        source_url="https://arxiv.org/abs/2609.88888",
+        source_type="arxiv",
+    )
+
+    state: AgentState = {
+        "release_item": item,
+        "user_id": "test_cached_user",
+        "search_plan": None,
+        "relevance_score": 0.0,
+        "is_relevant": False,
+        "matched_domains": [],
+        "filter_reason": "",
+        "notification_status": "PENDING",
+        "user_prompt_override": None,
+        "research_notes": [],
+        "tutorial_markdown": None,
+        "pdf_artifact_path": None,
+        "error_logs": [],
+    }
+
+    with patch("app.services.dedup_store.DeduplicationStore.is_seen", return_value=False), \
+         patch("app.bot.telegram_handler._in_memory_profiles", {"test_cached_user": user}), \
+         patch("app.agent.nodes.domain_filter_node.generate_embedding", wraps=generate_embedding) as mock_embed:
+        
+        # Clear cache for this user
+        _USER_PROFILE_CACHE.pop("test_cached_user", None)
+        
+        # First call: populates cache
+        res1 = await domain_filter_node(state)
+        assert "test_cached_user" in _USER_PROFILE_CACHE
+        calls_first = mock_embed.call_count
+
+        # Second call: should reuse cached profile embedding
+        res2 = await domain_filter_node(state)
+        # Release item embedding is computed, but profile embedding should not be recomputed
+        assert mock_embed.call_count == calls_first + 1
+
 
